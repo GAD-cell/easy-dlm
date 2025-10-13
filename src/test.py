@@ -2,7 +2,7 @@
 import torch 
 import numpy as np
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from utils.collate import ReformatModelAndTokForDiff, DiffusionCollate
+from utils.collate import ReformatModelAndTokForDiff, DiffusionCollator
 
 model_name = "gpt2"
 tokenizer_name = "gpt2"
@@ -29,7 +29,7 @@ def test_reformater():
 
 def test_diffusion_collate():
     block_size = 16
-    collate_fn = DiffusionCollate(tokenizer, block_size)
+    collate_fn = DiffusionCollator(tokenizer, block_size)
 
     sample_batch = [
         {"text": "The quick brown fox"},
@@ -42,7 +42,7 @@ def test_diffusion_collate():
     assert batch_encodings.input_ids.shape == (3, block_size), "Batch input shape mismatch"
     print(batch_encodings.input_ids)
     print(tokenizer.batch_decode(batch_encodings.input_ids, skip_special_tokens=False))
-    
+
 if __name__ == "__main__":
     test_reformater()
     test_diffusion_collate()

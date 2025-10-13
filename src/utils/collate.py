@@ -1,5 +1,5 @@
 import torch 
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, DefaultDataCollator
 
 class ReformatModelAndTokForDiff():
     def __init__(self, model_name, tokenizer_name):
@@ -19,7 +19,7 @@ class ReformatModelAndTokForDiff():
     def get_model_tok(self):
         return self.model, self.tokenizer
 
-class DiffusionCollate():
+class DiffusionCollator(DefaultDataCollator):
     def __init__(self, tokenizer, block_size):
         self.tokenizer = tokenizer
         self.block_size = block_size

@@ -5,7 +5,8 @@ class A2DTrainer(Trainer):
         self.model = model
         self.tokenizer = tokenizer
         self.args = args
-    
+
+        super().__init__(model=model, args=args, tokenizer=tokenizer)
     def _prepare_inputs(self, batch)
         pass
     
