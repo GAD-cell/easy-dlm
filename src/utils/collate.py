@@ -1,5 +1,21 @@
 import torch 
 import numpy as np
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+class ReformatModelAndTokForDiff():
+    def __init__(self, model_name, tokenizer_name):
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+        self.model = AutoModelForCausalLM.from_pretrained(model_name)
+
+        diff_mask_token = {"additional_special_tokens": ["[MASK]"]}
+        
+        num_added_tokens = self.tokenizer.add_special_tokens(diff_mask_token)
+        print(f"Added diffusion special tokens: {num_added_tokens}")
+        
+        self.model.resize_token_embeddings(len(self.tokenizer))
+
+    def get_model_tok(self):
+        return self.model, self.tokenizer
 
 class DiffusionCollate():
     def __init__(self, tokenizer, block_size):
