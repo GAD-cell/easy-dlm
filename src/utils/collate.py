@@ -7,11 +7,14 @@ class ReformatModelAndTokForDiff():
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
         self.model = AutoModelForCausalLM.from_pretrained(model_name)
 
-        diff_mask_token = {"additional_special_tokens": ["[MASK]"]}
-        
+        diff_mask_token = {"additional_special_tokens": ["[MASK]"]}  
         num_added_tokens = self.tokenizer.add_special_tokens(diff_mask_token)
         print(f"Added diffusion special tokens: {num_added_tokens}")
-        
+
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+        self.tokenizer.padding_side = "right"
+
         self.model.resize_token_embeddings(len(self.tokenizer))
 
     def get_model_tok(self):
@@ -21,6 +24,8 @@ class DiffusionCollate():
     def __init__(self, tokenizer, block_size):
         self.tokenizer = tokenizer
         self.block_size = block_size
+        self.diffusion_mask_id = self.tokenizer.convert_tokens_to_ids("[MASK]")
+        self.pad_id = self.tokenizer.pad_token_id
 
     def __call__(self, batch):
         texts = [item["text"] + self.tokenizer.eos_token for item in batch]
@@ -33,8 +38,11 @@ class DiffusionCollate():
             return_tensors="pt",
         )
         
-        t = np.random.uniform(0, 1)
-        mask  = torch.rand(input_encodings.input_ids.shape) < t
+        input_encodings["labels"] = input_encodings.input_ids.clone() # no shift, it's not a causal task
+
+        t = torch.rand(input_encodings.input_ids.shape[0], 1)  # per sequence masking
+        mask  = (torch.rand(input_encodings.input_ids.shape) < t) & (input_encodings.input_ids != self.pad_id)
+        input_encodings.input_ids[mask] = self.diffusion_mask_id
 
         return input_encodings
 
