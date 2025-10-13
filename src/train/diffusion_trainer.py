@@ -2,7 +2,8 @@ from transformers import Trainer, TrainingArguments
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-
+from torch.utils.data import DataLoader
+import math
 
 def selective_log_softmax(logits, index) -> torch.Tensor:
     """
@@ -113,8 +114,7 @@ class A2DTrainer(Trainer):
         """
         Main training loop.
         """
-        from torch.utils.data import DataLoader
-        import math
+
         
         # Setup
         train_dataloader = self.get_train_dataloader()
@@ -141,10 +141,8 @@ class A2DTrainer(Trainer):
             self.model.train()
             
             for step, batch in enumerate(train_dataloader):
-                # Prepare inputs
                 inputs = self._prepare_inputs(batch)
                 
-                # Forward pass avec autocast si FP16
                 if self.args.fp16 and scaler is not None:
                     from torch.amp import autocast
                     with autocast('cuda'):
@@ -154,12 +152,11 @@ class A2DTrainer(Trainer):
                         if self.args.gradient_accumulation_steps > 1:
                             loss = loss / self.args.gradient_accumulation_steps
                     
-                    # Backward avec scaled loss
                     scaler.scale(loss).backward()
                 else:
                     loss = self.compute_loss(self.model, inputs)
                     
-                    # Scale loss for gradient accumulation
+
                     if self.args.gradient_accumulation_steps > 1:
                         loss = loss / self.args.gradient_accumulation_steps
                     
@@ -200,7 +197,7 @@ class A2DTrainer(Trainer):
                         print(f"Epoch {epoch} | Step {self.global_step} | Loss: {avg_loss:.4f} | LR: {self.optimizer.param_groups[0]['lr']:.2e}")
                         total_loss = 0
             
-            # End of epoch
+
             avg_epoch_loss = epoch_loss / len(train_dataloader)
             print(f"Epoch {epoch} completed | Average Loss: {avg_epoch_loss:.4f}")
             
