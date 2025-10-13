@@ -1,5 +1,7 @@
 from transformers import Trainer, TrainingArguments
 import torch.nn as nn
+import torch
+import torch.nn.functional as F
 
 
 def selective_log_softmax(logits, index) -> torch.Tensor:
@@ -37,7 +39,7 @@ def selective_log_softmax(logits, index) -> torch.Tensor:
     return per_token_logps
 
 
-class A2DConfig(TrainingArguments)
+class A2DConfig(TrainingArguments):
     pass
 
 
@@ -58,18 +60,16 @@ class A2DTrainer(Trainer):
                         data_collator=data_collator, 
                         train_dataset=train_dataset, 
                         eval_dataset=eval_dataset,
-                        optimizersr=optimizers)
+                        optimizers=optimizers)
 
     def _prepare_inputs(self, batch):
-        
-        input_encodings = self.data_collator(batch)
 
         output = {
-            "input_ids": input_encodings["input_ids"].to(self.args.device),
-            "attention_mask": input_encodings["attention_mask"].to(self.args.device),
-            "labels": input_encodings["labels"].to(self.args.device),
-            "diffusion_masks": input_encodings["diffusion_masks"].to(self.args.device),
-            "t": input_encodings["t"].to(self.args.device),
+            "input_ids": batch["input_ids"].to(self.args.device),
+            "attention_mask": batch["attention_mask"].to(self.args.device),
+            "labels": batch["labels"].to(self.args.device),
+            "diffusion_masks": batch["diffusion_masks"].to(self.args.device),
+            "t": batch["t"].to(self.args.device),
                 }
         return output
     
@@ -104,20 +104,12 @@ class A2DTrainer(Trainer):
         if self.args.gradient_accumulation_steps > 1:
             loss = loss / self.args.gradient_accumulation_steps
         
-        # Backward pass
-        if self.use_apex:
-            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                scaled_loss.backward()
-        elif self.use_cuda_amp:
-            self.scaler.scale(loss).backward()
-        elif self.deepspeed:
-            loss = self.deepspeed.backward(loss)
-        else:
-            loss.backward()
+        # Backward pass (simple)
+        loss.backward()
 
         return loss.detach()
 
-    def train(self):
+    def train(self, resume_from_checkpoint=False):
         """
         Main training loop.
         """
@@ -133,6 +125,13 @@ class A2DTrainer(Trainer):
         self.model.to(self.args.device)
         self.create_optimizer_and_scheduler(num_training_steps=max_steps)
         
+        # Setup mixed precision scaler si FP16
+        scaler = None
+        if self.args.fp16 and torch.cuda.is_available():
+            from torch.amp import GradScaler
+            scaler = GradScaler('cuda')
+            print("FP16 training enabled with GradScaler")
+        
         # Training loop
         total_loss = 0
         self.global_step = 0
@@ -142,8 +141,30 @@ class A2DTrainer(Trainer):
             self.model.train()
             
             for step, batch in enumerate(train_dataloader):
-                # Training step
-                loss = self.training_step(self.model, batch)
+                # Prepare inputs
+                inputs = self._prepare_inputs(batch)
+                
+                # Forward pass avec autocast si FP16
+                if self.args.fp16 and scaler is not None:
+                    from torch.amp import autocast
+                    with autocast('cuda'):
+                        loss = self.compute_loss(self.model, inputs)
+                        
+                        # Scale loss for gradient accumulation
+                        if self.args.gradient_accumulation_steps > 1:
+                            loss = loss / self.args.gradient_accumulation_steps
+                    
+                    # Backward avec scaled loss
+                    scaler.scale(loss).backward()
+                else:
+                    loss = self.compute_loss(self.model, inputs)
+                    
+                    # Scale loss for gradient accumulation
+                    if self.args.gradient_accumulation_steps > 1:
+                        loss = loss / self.args.gradient_accumulation_steps
+                    
+                    loss.backward()
+                
                 total_loss += loss.item()
                 epoch_loss += loss.item()
                 
@@ -151,20 +172,19 @@ class A2DTrainer(Trainer):
                 if (step + 1) % self.args.gradient_accumulation_steps == 0 or (step + 1) == len(train_dataloader):
                     # Clip gradients
                     if self.args.max_grad_norm is not None and self.args.max_grad_norm > 0:
-                        if hasattr(self.optimizer, "clip_grad_norm"):
-                            self.optimizer.clip_grad_norm(self.args.max_grad_norm)
-                        elif hasattr(self.model, "clip_grad_norm_"):
-                            self.model.clip_grad_norm_(self.args.max_grad_norm)
-                        else:
-                            torch.nn.utils.clip_grad_norm_(
-                                self.model.parameters(),
-                                self.args.max_grad_norm,
-                            )
+                        if scaler is not None:
+                            # Unscale before clipping
+                            scaler.unscale_(self.optimizer)
+                        
+                        torch.nn.utils.clip_grad_norm_(
+                            self.model.parameters(),
+                            self.args.max_grad_norm,
+                        )
                     
                     # Optimizer step
-                    if self.use_cuda_amp:
-                        self.scaler.step(self.optimizer)
-                        self.scaler.update()
+                    if scaler is not None:
+                        scaler.step(self.optimizer)
+                        scaler.update()
                     else:
                         self.optimizer.step()
                     
@@ -174,6 +194,7 @@ class A2DTrainer(Trainer):
                     self.optimizer.zero_grad()
                     self.global_step += 1
                     
+                    # Logging
                     if self.args.logging_steps > 0 and self.global_step % self.args.logging_steps == 0:
                         avg_loss = total_loss / self.args.logging_steps
                         print(f"Epoch {epoch} | Step {self.global_step} | Loss: {avg_loss:.4f} | LR: {self.optimizer.param_groups[0]['lr']:.2e}")

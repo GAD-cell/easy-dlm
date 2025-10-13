@@ -1,4 +1,5 @@
 numpy
 torch
 transformers
+datasets
 git+https://github.com/GAD-cell/muon-clip.git@main

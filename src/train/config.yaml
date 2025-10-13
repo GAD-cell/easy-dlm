@@ -1,0 +1,31 @@
+
+# A2D Training Configuration - Minimal
+
+# Model
+model_name: "MaxLSB/LeCarnet-3M"
+tokenizer_name: "MaxLSB/LeCarnet-3M"
+
+# Dataset
+dataset_name: "LeCarnet"
+dataset_path: "MaxLSB/LeCarnet"
+dataset_config_name: 
+text_column: "text"
+
+# Output
+output_dir: "./a2d_output"
+cache_dir: "./cache"
+
+# Training
+num_train_epochs: 3
+per_device_train_batch_size: 16
+gradient_accumulation_steps: 2
+learning_rate: 5.0e-5
+
+# Data
+block_size: 512
+
+# Logging
+logging_steps: 20
+
+# Performance
+fp16: true

@@ -3,3 +3,5 @@
 ./.vscode
 *.pyc
 __pycache__
+cache/
+a2d_output/
