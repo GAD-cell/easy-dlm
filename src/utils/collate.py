@@ -25,6 +25,7 @@ class DiffusionCollator(DefaultDataCollator):
         self.block_size = block_size
         self.diffusion_mask_id = self.tokenizer.convert_tokens_to_ids("[MASK]")
         self.pad_id = self.tokenizer.pad_token_id
+        self.t_eps = 1e-8
 
     def __call__(self, batch):
         texts = [item["text"] + self.tokenizer.eos_token for item in batch]
@@ -42,7 +43,8 @@ class DiffusionCollator(DefaultDataCollator):
         t = torch.rand(input_encodings.input_ids.shape[0], 1)  # per sequence masking
         mask  = (torch.rand(input_encodings.input_ids.shape) < t) & (input_encodings.input_ids != self.pad_id)
         input_encodings.input_ids[mask] = self.diffusion_mask_id
-
+        input_encodings["diffusion_masks"] = mask
+        input_encodings["t"] = t + self.t_eps  # avoid div by zero
         return input_encodings
 
 
