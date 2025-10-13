@@ -2,3 +2,4 @@
 ./archive
 ./.vscode
 *.pyc
+__pycache__
