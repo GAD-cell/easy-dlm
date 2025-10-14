@@ -35,9 +35,14 @@ def create_training_config(config):
         per_device_train_batch_size=config['per_device_train_batch_size'],
         gradient_accumulation_steps=config.get('gradient_accumulation_steps', 1),
         learning_rate=config['learning_rate'],
+        max_grad_norm=config.get('max_grad_norm', None),
+        lr_scheduler_type=config.get('lr_scheduler_type', 'linear'),
+        warmup_steps=config.get('warmup_steps', 0),
+        weight_decay=config.get('weight_decay', 0.0),
         fp16=config.get('fp16', False),
         remove_unused_columns=False,
         logging_steps=config.get('logging_steps', 10),
+        save_steps=config.get('save_steps', 1000),
     )
     
     return training_config

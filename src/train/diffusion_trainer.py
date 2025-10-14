@@ -74,7 +74,7 @@ class A2DTrainer(Trainer):
                 }
         return output
     
-    def compute_loss(self, model, inputs):
+    def compute_loss(self, model, inputs,num_items_in_batch=None) -> torch.Tensor:
         input_ids, attention_mask,  = inputs["input_ids"], inputs["attention_mask"]
         labels, diffusion_masks = inputs["labels"], inputs["diffusion_masks"]
         t = inputs["t"]
@@ -87,128 +87,7 @@ class A2DTrainer(Trainer):
         ], dim=1)
         
         logps = selective_log_softmax(logits, labels)
-        loss = - (logps[trans_masks] / t).mean()
+        loss = - (logps[trans_masks] / (1+t)).mean()
 
+        self.log({"train_loss": loss.detach().cpu().item()})
         return loss
-
-    def training_step(self, model, inputs, num_items_in_batch=None) -> torch.Tensor:
-        """
-        Perform a training step on a batch of inputs.
-        """
-        model.train()
-        inputs = self._prepare_inputs(inputs)
-        
-        # Compute loss
-        loss = self.compute_loss(model, inputs)
-        
-        # Scale loss for gradient accumulation
-        if self.args.gradient_accumulation_steps > 1:
-            loss = loss / self.args.gradient_accumulation_steps
-        
-        # Backward pass (simple)
-        loss.backward()
-
-        return loss.detach()
-
-    def train(self, resume_from_checkpoint=False):
-        """
-        Main training loop.
-        """
-
-        
-        # Setup
-        train_dataloader = self.get_train_dataloader()
-        num_update_steps_per_epoch = len(train_dataloader) // self.args.gradient_accumulation_steps
-        num_train_epochs = self.args.num_train_epochs
-        max_steps = math.ceil(num_train_epochs * num_update_steps_per_epoch)
-        
-        self.model.to(self.args.device)
-        self.create_optimizer_and_scheduler(num_training_steps=max_steps)
-        
-        # Setup mixed precision scaler si FP16
-        scaler = None
-        if self.args.fp16 and torch.cuda.is_available():
-            from torch.amp import GradScaler
-            scaler = GradScaler('cuda')
-            print("FP16 training enabled with GradScaler")
-        
-        # Training loop
-        total_loss = 0
-        self.global_step = 0
-        
-        for epoch in range(int(num_train_epochs)):
-            epoch_loss = 0
-            self.model.train()
-            
-            for step, batch in enumerate(train_dataloader):
-                inputs = self._prepare_inputs(batch)
-                
-                if self.args.fp16 and scaler is not None:
-                    from torch.amp import autocast
-                    with autocast('cuda'):
-                        loss = self.compute_loss(self.model, inputs)
-                        
-                        # Scale loss for gradient accumulation
-                        if self.args.gradient_accumulation_steps > 1:
-                            loss = loss / self.args.gradient_accumulation_steps
-                    
-                    scaler.scale(loss).backward()
-                else:
-                    loss = self.compute_loss(self.model, inputs)
-                    
-
-                    if self.args.gradient_accumulation_steps > 1:
-                        loss = loss / self.args.gradient_accumulation_steps
-                    
-                    loss.backward()
-                
-                total_loss += loss.item()
-                epoch_loss += loss.item()
-                
-                # Gradient accumulation
-                if (step + 1) % self.args.gradient_accumulation_steps == 0 or (step + 1) == len(train_dataloader):
-                    # Clip gradients
-                    if self.args.max_grad_norm is not None and self.args.max_grad_norm > 0:
-                        if scaler is not None:
-                            # Unscale before clipping
-                            scaler.unscale_(self.optimizer)
-                        
-                        torch.nn.utils.clip_grad_norm_(
-                            self.model.parameters(),
-                            self.args.max_grad_norm,
-                        )
-                    
-                    # Optimizer step
-                    if scaler is not None:
-                        scaler.step(self.optimizer)
-                        scaler.update()
-                    else:
-                        self.optimizer.step()
-                    
-                    if self.lr_scheduler is not None:
-                        self.lr_scheduler.step()
-                    
-                    self.optimizer.zero_grad()
-                    self.global_step += 1
-                    
-                    # Logging
-                    if self.args.logging_steps > 0 and self.global_step % self.args.logging_steps == 0:
-                        avg_loss = total_loss / self.args.logging_steps
-                        print(f"Epoch {epoch} | Step {self.global_step} | Loss: {avg_loss:.4f} | LR: {self.optimizer.param_groups[0]['lr']:.2e}")
-                        total_loss = 0
-            
-
-            avg_epoch_loss = epoch_loss / len(train_dataloader)
-            print(f"Epoch {epoch} completed | Average Loss: {avg_epoch_loss:.4f}")
-            
-            # Evaluation
-            if self.args.eval_strategy == "epoch" and self.eval_dataset is not None:
-                eval_results = self.evaluate()
-                print(f"Evaluation results: {eval_results}")
-            
-            # Save checkpoint
-            if self.args.save_strategy == "epoch":
-                self.save_model(f"{self.args.output_dir}/checkpoint-epoch-{epoch}")
-        
-        print("Training completed!")
-        return self.model

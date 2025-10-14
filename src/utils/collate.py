@@ -9,26 +9,20 @@ def full_attention_causal_mask(self,
                         cache_position=None, 
                         past_key_values=None, 
                         output_attentions=False):
+      
+    batch_size, seq_length = input_tensor.shape[:2]
+    mask_queries = attention_mask[:, None, :, None].bool()  # (batch, 1, seq_len, 1)
+    mask_keys = attention_mask[:, None, None, :].bool()     # (batch, 1, 1, seq_len)
     
-    print(attention_mask.shape)
-
-    return attention_mask
-
-# Convert causal attention into full attention
-def convert_causal_to_full_attention(model):
-    architecture = model.config.architectures[0]
-    ArchitectureClass = getattr(transformers, architecture)
+    full_mask = mask_queries & mask_keys  # (batch, 1, seq_len, seq_len)
     
-    #modify here the attention mechanism to full attention
-    #ArchitectureClass._update_causal_mask = full_attention_causal_mask
-
-    return ArchitectureClass
+    return full_mask
 
 class ReformatModelAndTokForDiff():
     def __init__(self, model_name, tokenizer_name):
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-        ArchitectureClass = convert_causal_to_full_attention(AutoModelForCausalLM.from_pretrained(model_name))
-        self.model = ArchitectureClass.from_pretrained(model_name)
+        self.model = AutoModelForCausalLM.from_pretrained(model_name)
+        self._patch_attention_mechanism()
 
         diff_mask_token = {"additional_special_tokens": ["[MASK]"]}  
         num_added_tokens = self.tokenizer.add_special_tokens(diff_mask_token)
@@ -39,6 +33,19 @@ class ReformatModelAndTokForDiff():
         self.tokenizer.padding_side = "right"
 
         self.model.resize_token_embeddings(len(self.tokenizer))
+
+    def _patch_attention_mechanism(self):
+        """Patch the attention mechanism to use full attention"""
+
+        if hasattr(self.model, 'transformer'):
+            base_model = self.model.transformer
+        elif hasattr(self.model, 'model'):
+            base_model = self.model.model
+        else:
+            base_model = self.model
+        
+        base_model.__class__._update_causal_mask = full_attention_causal_mask
+        print(f"Patched {base_model.__class__.__name__} to use full attention")
 
     def get_model_tok(self):
         return self.model, self.tokenizer
@@ -66,7 +73,7 @@ class DiffusionCollator(DefaultDataCollator):
         input_encodings["labels"] = input_encodings.input_ids.clone() # no shift, it's not a causal task
 
         t = torch.rand(input_encodings.input_ids.shape[0], 1)  # per sequence masking
-        t = 0.0
+        
         mask  = (torch.rand(input_encodings.input_ids.shape) < t) & (input_encodings.input_ids != self.pad_id)
         input_encodings.input_ids[mask] = self.diffusion_mask_id
         input_encodings["diffusion_masks"] = mask

@@ -49,24 +49,38 @@ def causal_diffusion_formatter():
     collate_fn = DiffusionCollator(tokenizer, block_size)
 
     sample_batch = [
-        {"text": "The quick brown fox"},
-        {"text": "jumps over the lazy dog"},
-        {"text": "and runs away quickly"},
+        {"text": "The quick brown fox."},
+        {"text": "jumps over the lazy dog."},
+        {"text": "and runs away quickly."},
     ]
 
     batch_encodings = collate_fn(sample_batch)
 
-    model_output = model.generate(
-        input_ids=batch_encodings.input_ids,
-        attention_mask=batch_encodings.attention_mask,
-        max_length=block_size+1,
-        do_sample=False,
-        num_return_sequences=1,
-        pad_token_id=tokenizer.eos_token_id
-    )
+    with torch.no_grad():
+        outputs = model(
+            input_ids=batch_encodings.input_ids,
+            attention_mask=batch_encodings.attention_mask
+        )
+    
+    # Les logits ont la shape (batch_size, sequence_length, vocab_size)
+    logits = outputs.logits
+    
+    # Prédire le token suivant pour CHAQUE position
+    predicted_tokens = torch.argmax(logits, dim=-1)
+    
+    print("Predictions for each token position:")
+    for i, (input_seq, pred_seq, attn_mask) in enumerate(zip(
+        batch_encodings.input_ids, 
+        predicted_tokens,
+        batch_encodings.attention_mask
+    )):
+        print(f"\nSequence {i}:")
+        for pos, (input_tok, pred_tok, mask) in enumerate(zip(input_seq, pred_seq, attn_mask)):
+            if mask == 1:  # Seulement pour les tokens non-padding
+                input_text = tokenizer.decode([input_tok])
+                predicted_text = tokenizer.decode([pred_tok])
+                print(f"  Position {pos}: '{input_text}' -> predicts next: '{predicted_text}'")
 
-    print(model_output)  
-    print(tokenizer.batch_decode(torch.argmax(model_output, dim=-1), skip_special_tokens=True))
 if __name__ == "__main__":
     #test_reformater()
     #test_diffusion_collate()
