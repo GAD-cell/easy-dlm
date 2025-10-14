@@ -1,10 +1,25 @@
 import torch 
 from transformers import AutoTokenizer, AutoModelForCausalLM, DefaultDataCollator
+import transformers
+
+
+# Convert causal attention into full attention
+def convert_causal_to_full_attention(model):
+    architecture = model.config.architectures[0]
+
+    
+    ArchitectureClass = getattr(transformers, architecture)
+    
+    #modify here the attention mechanism to full attention
+    ArchitectureClass._update_causal_mask = lambda self, attention_scores, input_shape, past_key_values_length: None
+    
+    return ArchitectureClass
 
 class ReformatModelAndTokForDiff():
     def __init__(self, model_name, tokenizer_name):
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-        self.model = AutoModelForCausalLM.from_pretrained(model_name)
+        ArchitectureClass = convert_causal_to_full_attention(AutoModelForCausalLM.from_pretrained(model_name))
+        self.model = ArchitectureClass.from_pretrained(model_name)
 
         diff_mask_token = {"additional_special_tokens": ["[MASK]"]}  
         num_added_tokens = self.tokenizer.add_special_tokens(diff_mask_token)
@@ -18,11 +33,6 @@ class ReformatModelAndTokForDiff():
 
     def get_model_tok(self):
         return self.model, self.tokenizer
-
-
-# class to convert causal attention into full attention
-class CausalToFullAttention(torch.nn.Module):
-    pass
 
 
 class DiffusionCollator(DefaultDataCollator):
