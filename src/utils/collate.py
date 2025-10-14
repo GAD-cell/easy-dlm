@@ -73,7 +73,7 @@ class DiffusionCollator(DefaultDataCollator):
         input_encodings["labels"] = input_encodings.input_ids.clone() # no shift, it's not a causal task
 
         t = torch.rand(input_encodings.input_ids.shape[0], 1)  # per sequence masking
-        
+        t = 0.2
         mask  = (torch.rand(input_encodings.input_ids.shape) < t) & (input_encodings.input_ids != self.pad_id)
         input_encodings.input_ids[mask] = self.diffusion_mask_id
         input_encodings["diffusion_masks"] = mask

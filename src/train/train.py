@@ -1,10 +1,10 @@
 import argparse
 import yaml
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from datasets import load_dataset
 import os
-
+from muon import MuonClip, MuonConfig
 from src.train.diffusion_trainer import A2DTrainer, A2DConfig
 from src.utils.collate import ReformatModelAndTokForDiff, DiffusionCollator
 
@@ -55,7 +55,8 @@ def main(config):
     print("="*50)
     
     torch.manual_seed(config.get('seed', 42))
-    model, tokenizer = ReformatModelAndTokForDiff(model_name=config["model_name"],tokenizer_name=config["tokenizer_name"]).get_model_tok()
+    model, tokenizer = ReformatModelAndTokForDiff(model_name=config["model_name"],
+                                                tokenizer_name=config["tokenizer_name"]).get_model_tok()
     
     train_dataset, eval_dataset = load_and_preprocess_dataset(config, tokenizer)
     
@@ -63,9 +64,35 @@ def main(config):
     
     data_collator = DiffusionCollator(
         tokenizer=tokenizer,
-        block_size=config["block_size"],
+        block_size=512,
     )
     
+
+    model_config = AutoConfig.from_pretrained(config["model_name"])
+
+    muon_config = MuonConfig(
+        lr=config.get("learning_rate", 3e-4),
+
+        muon_beta=0.95,
+        muon_decay=0.0,
+        ns_steps=5,
+
+        adam_betas = (0.9, 0.95),
+        adam_decay= config.get("weight_decay", 1e-4),
+        adam_eps= 1e-10,
+
+        enable_clipping= True,
+        clipping_layers_mapping = {"q_proj":"q_proj","k_proj":"k_proj"} ,
+        clipping_threshold= 50.0,
+        clipping_alpha= 0.5,
+
+        log_max_logits= False,
+        log_dir= "" ,
+        cans_ortho= False,
+        estimate_lower_bound= False ,
+    )
+
+    optimizer = MuonClip(model, model_config, muon_config)
 
     print("\nInitializing A2DTrainer...")
     trainer = A2DTrainer(
@@ -74,6 +101,7 @@ def main(config):
         data_collator=data_collator,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
+        optimizers=(optimizer, None)  # Scheduler will be created by Trainer
     )
     
     checkpoint = None

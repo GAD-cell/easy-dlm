@@ -10,10 +10,10 @@ authors = [{ name="Sinoué GAD" }]
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
-    numpy,
-    torch,
-    transformers,
-    git+https://github.com/GAD-cell/muon-clip.git@main,
+    "numpy",
+    "torch",
+    "transformers",
+    "git+https://github.com/GAD-cell/muon-clip.git@main"
 ]
 
 [tool.uv]

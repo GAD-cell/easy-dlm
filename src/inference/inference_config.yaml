@@ -1,0 +1,8 @@
+model_name: "/home/gad/code_projects/easy-dlm/a2d_output/checkpoint-2000"
+tokenizer_name: "/home/gad/code_projects/easy-dlm/a2d_output/checkpoint-2000"
+
+
+dataset_name: "LeCarnet"
+dataset_path: "MaxLSB/LeCarnet"
+dataset_config_name: 
+text_column: "text"
