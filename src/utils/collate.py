@@ -3,16 +3,25 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, DefaultDataCollato
 import transformers
 
 
+def full_attention_causal_mask(self, 
+                        attention_mask, 
+                        input_tensor, 
+                        cache_position=None, 
+                        past_key_values=None, 
+                        output_attentions=False):
+    
+    print(attention_mask.shape)
+
+    return attention_mask
+
 # Convert causal attention into full attention
 def convert_causal_to_full_attention(model):
     architecture = model.config.architectures[0]
-
-    
     ArchitectureClass = getattr(transformers, architecture)
     
     #modify here the attention mechanism to full attention
-    ArchitectureClass._update_causal_mask = lambda self, attention_scores, input_shape, past_key_values_length: None
-    
+    #ArchitectureClass._update_causal_mask = full_attention_causal_mask
+
     return ArchitectureClass
 
 class ReformatModelAndTokForDiff():
@@ -57,6 +66,7 @@ class DiffusionCollator(DefaultDataCollator):
         input_encodings["labels"] = input_encodings.input_ids.clone() # no shift, it's not a causal task
 
         t = torch.rand(input_encodings.input_ids.shape[0], 1)  # per sequence masking
+        t = 0.0
         mask  = (torch.rand(input_encodings.input_ids.shape) < t) & (input_encodings.input_ids != self.pad_id)
         input_encodings.input_ids[mask] = self.diffusion_mask_id
         input_encodings["diffusion_masks"] = mask

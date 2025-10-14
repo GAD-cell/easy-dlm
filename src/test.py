@@ -43,6 +43,31 @@ def test_diffusion_collate():
     print(batch_encodings.input_ids)
     print(tokenizer.batch_decode(batch_encodings.input_ids, skip_special_tokens=False))
 
+
+def causal_diffusion_formatter():
+    block_size = 16
+    collate_fn = DiffusionCollator(tokenizer, block_size)
+
+    sample_batch = [
+        {"text": "The quick brown fox"},
+        {"text": "jumps over the lazy dog"},
+        {"text": "and runs away quickly"},
+    ]
+
+    batch_encodings = collate_fn(sample_batch)
+
+    model_output = model.generate(
+        input_ids=batch_encodings.input_ids,
+        attention_mask=batch_encodings.attention_mask,
+        max_length=block_size+1,
+        do_sample=False,
+        num_return_sequences=1,
+        pad_token_id=tokenizer.eos_token_id
+    )
+
+    print(model_output)  
+    print(tokenizer.batch_decode(torch.argmax(model_output, dim=-1), skip_special_tokens=True))
 if __name__ == "__main__":
-    test_reformater()
-    test_diffusion_collate()
+    #test_reformater()
+    #test_diffusion_collate()
+    causal_diffusion_formatter()
