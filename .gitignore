@@ -1,6 +1,7 @@
-./media
-./archive
-./.vscode
+media
+archive
+.vscode
+wandb/
 *.pyc
 __pycache__
 cache/
