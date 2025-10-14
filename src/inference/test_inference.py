@@ -31,22 +31,33 @@ def main(config):
     tokenizer=tokenizer,
     block_size=512,
     )
+    sub_block_size = 16
 
     _, eval_dataset = load_and_preprocess_dataset(config, tokenizer)
 
-    eval_sample = eval_dataset[0]
+    # eval_sample = eval_dataset[0]
+    # without_resampling1(eval_sample, data_collator, model, tokenizer)
 
-    without_resampling(eval_sample, data_collator, model, tokenizer)
+    eval_sample = {"test":"Il était une fois "}
+    without_resampling2(eval_sample, model, tokenizer, sub_block_size=sub_block_size)
 
-
-def without_resampling(eval_sample,data_collator, model, tokenizer):
+def without_resampling1(eval_sample,data_collator, model, tokenizer):
     batch = data_collator([eval_sample])
     print(f"Batch after collate: {tokenizer.decode(batch['input_ids'][0][batch['attention_mask'][0]==1])}")
     output = model(**batch)
     print(f"Model output logits shape: {output.logits.shape}")
     print(tokenizer.decode(output.logits[0].argmax(dim=-1)))
 
+def without_resampling2(eval_sample, model, tokenizer, sub_block_size=16):
 
+    encodings = tokenizer(eval_sample["test"], return_tensors="pt")
+    mask_token_id = tokenizer.convert_tokens_to_ids("[MASK]")
+    encodings["input_ids"] = torch.cat([encodings["input_ids"], torch.tensor([[mask_token_id]*sub_block_size])], dim=1)
+    encodings["attention_mask"] = torch.ones(1, encodings["input_ids"].shape[1], dtype=torch.bool)
+
+    output = model(**encodings)
+    print(f"Model output logits shape: {output.logits.shape}")
+    print(tokenizer.decode(output.logits[0].argmax(dim=-1)))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train A2D model")

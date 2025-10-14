@@ -60,7 +60,7 @@ class DiffusionCollator(DefaultDataCollator):
         self.t_eps = 1e-8
 
     def __call__(self, batch):
-        texts = [item["text"] + self.tokenizer.eos_token for item in batch]
+        texts = [item["text"] + self.tokenizer.eos_token + "[MASK]" for item in batch]
 
         input_encodings = self.tokenizer(
             texts,
@@ -73,7 +73,7 @@ class DiffusionCollator(DefaultDataCollator):
         input_encodings["labels"] = input_encodings.input_ids.clone() # no shift, it's not a causal task
 
         t = torch.rand(input_encodings.input_ids.shape[0], 1)  # per sequence masking
-        t = 0.2
+
         mask  = (torch.rand(input_encodings.input_ids.shape) < t) & (input_encodings.input_ids != self.pad_id)
         input_encodings.input_ids[mask] = self.diffusion_mask_id
         input_encodings["diffusion_masks"] = mask

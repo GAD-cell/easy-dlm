@@ -62,10 +62,8 @@ def causal_diffusion_formatter():
             attention_mask=batch_encodings.attention_mask
         )
     
-    # Les logits ont la shape (batch_size, sequence_length, vocab_size)
+
     logits = outputs.logits
-    
-    # Prédire le token suivant pour CHAQUE position
     predicted_tokens = torch.argmax(logits, dim=-1)
     
     print("Predictions for each token position:")
@@ -76,7 +74,7 @@ def causal_diffusion_formatter():
     )):
         print(f"\nSequence {i}:")
         for pos, (input_tok, pred_tok, mask) in enumerate(zip(input_seq, pred_seq, attn_mask)):
-            if mask == 1:  # Seulement pour les tokens non-padding
+            if mask == 1:  
                 input_text = tokenizer.decode([input_tok])
                 predicted_text = tokenizer.decode([pred_tok])
                 print(f"  Position {pos}: '{input_text}' -> predicts next: '{predicted_text}'")
