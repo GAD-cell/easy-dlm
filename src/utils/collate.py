@@ -19,6 +19,12 @@ class ReformatModelAndTokForDiff():
     def get_model_tok(self):
         return self.model, self.tokenizer
 
+
+# class to convert causal attention into full attention
+class CausalToFullAttention(torch.nn.Module):
+    pass
+
+
 class DiffusionCollator(DefaultDataCollator):
     def __init__(self, tokenizer, block_size):
         self.tokenizer = tokenizer
