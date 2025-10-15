@@ -34,7 +34,6 @@ def create_training_config(config):
         num_train_epochs=config['num_train_epochs'],
         per_device_train_batch_size=config['per_device_train_batch_size'],
         gradient_accumulation_steps=config.get('gradient_accumulation_steps', 1),
-        learning_rate=config['learning_rate'],
         max_grad_norm=config.get('max_grad_norm', None),
         lr_scheduler_type=config.get('lr_scheduler_type', 'linear'),
         warmup_steps=config.get('warmup_steps', 0),
@@ -71,10 +70,12 @@ def main(config):
     model_config = AutoConfig.from_pretrained(config["model_name"])
 
     muon_config = MuonConfig(
-        lr=config.get("learning_rate", 3e-4),
+        unified_lr = False,
+        lr_muon = config.get("lr_muon", 3e-4),
+        lr_adam = config.get("lr_adam", 1e-8),
 
         muon_beta=0.95,
-        muon_decay=0.0,
+        muon_decay=config.get("weight_decay", 1e-4),
         ns_steps=5,
 
         adam_betas = (0.9, 0.95),
