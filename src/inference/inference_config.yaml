@@ -1,5 +1,5 @@
-model_name: "/home/gad/code_projects/easy-dlm/a2d_output/checkpoint-2000"
-tokenizer_name: "/home/gad/code_projects/easy-dlm/a2d_output/checkpoint-2000"
+model_name: "/home/gad/code_projects/easy-dlm/a2d_output/checkpoint-1000"
+tokenizer_name: "/home/gad/code_projects/easy-dlm/a2d_output/checkpoint-1000"
 
 
 dataset_name: "LeCarnet"
