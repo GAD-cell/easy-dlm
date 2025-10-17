@@ -19,10 +19,10 @@ def full_attention_causal_mask(self,
     return full_mask
 
 class ReformatModelAndTokForDiff():
-    def __init__(self, model_name, tokenizer_name):
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-        self.model = AutoModelForCausalLM.from_pretrained(model_name)
-        self._patch_attention_mechanism()
+    def __init__(self, model, tokenizer, lora_config=None):
+        self.tokenizer = tokenizer
+        self.model = model
+        
 
         diff_mask_token = {"additional_special_tokens": ["[MASK]"]}  
         num_added_tokens = self.tokenizer.add_special_tokens(diff_mask_token)
@@ -31,9 +31,18 @@ class ReformatModelAndTokForDiff():
         if self.tokenizer.pad_token is None:
             self.tokenizer.add_special_tokens({"pad_token": "[PAD]"})
         self.tokenizer.padding_side = "right"
+ 
+        
+        
+        # if lora_config:
+        #     from peft import get_peft_model
+        #     self.model = get_peft_model(self.model, lora_config)
+        #     print("Converted model to LoRA model")
+        #     print(self.model.print_trainable_parameters())
 
+        self._patch_attention_mechanism()
         self.model.resize_token_embeddings(len(self.tokenizer))
-
+        
     def _patch_attention_mechanism(self):
         """Patch the attention mechanism to use full attention"""
 
@@ -71,8 +80,8 @@ class DiffusionCollator(DefaultDataCollator):
         )
         
         input_encodings["labels"] = input_encodings.input_ids.clone() 
-        input_encodings["labels"][:,:-1] = input_encodings["labels"][:,1:]  # shift left
-        input_encodings["labels"][:,-1] = self.tokenizer.pad_token_id
+        # input_encodings["labels"][:,:-1] = input_encodings["labels"][:,1:]  # shift left
+        # input_encodings["labels"][:,-1] = self.tokenizer.pad_token_id
 
         t = torch.rand(input_encodings.input_ids.shape[0], 1)  # per sequence masking
 

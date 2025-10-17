@@ -24,7 +24,7 @@ test:
 
 train:
 	@echo "Running training..."
-	PYTHONPATH=. $(VENV)/bin/python -m src.train.train --config src/train/config.yaml
+	PYTHONPATH=. $(VENV)/bin/python -m src.train.train --config src/train/training_config.yaml
 
 test_inference:
 	@echo "Running test_inference..."

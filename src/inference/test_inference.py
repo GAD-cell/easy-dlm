@@ -23,9 +23,12 @@ def load_and_preprocess_dataset(config, tokenizer):
     
     return train_dataset, eval_dataset
 
+from transformers import AutoTokenizer, AutoModelForCausalLM
 def main(config):
-    model, tokenizer = ReformatModelAndTokForDiff(model_name=config["model_name"],
-                                                tokenizer_name=config["tokenizer_name"]).get_model_tok()
+    model = AutoModelForCausalLM.from_pretrained(config["model_name"])
+    tokenizer = AutoTokenizer.from_pretrained(config["tokenizer_name"])
+    model, tokenizer = ReformatModelAndTokForDiff(model,
+                                                tokenizer).get_model_tok()
 
     data_collator = DiffusionCollator(
     tokenizer=tokenizer,
@@ -35,12 +38,12 @@ def main(config):
 
     _, eval_dataset = load_and_preprocess_dataset(config, tokenizer)
 
-    # eval_sample = eval_dataset[0]
-    # without_resampling1(eval_sample, data_collator, model, tokenizer)
+    eval_sample = eval_dataset[0]
+    without_resampling1(eval_sample, data_collator, model, tokenizer)
 
-    eval_sample = {"test":"Il était une fois "}
-    without_resampling2(eval_sample, model, tokenizer, sub_block_size=sub_block_size)
-    test_resampling(eval_sample, model, tokenizer)
+    # eval_sample = {"test":"Il était une fois "}
+    # without_resampling2(eval_sample, model, tokenizer, sub_block_size=sub_block_size)
+    # test_resampling(eval_sample, model, tokenizer)
 
 def without_resampling1(eval_sample,data_collator, model, tokenizer):
     batch = data_collator([eval_sample])

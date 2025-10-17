@@ -1,13 +1,13 @@
 import argparse
 import yaml
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig, LlamaForCausalLM
 from datasets import load_dataset
 import os
 from muon import MuonClip, MuonConfig
 from src.train.diffusion_trainer import A2DTrainer, A2DConfig
 from src.utils.collate import ReformatModelAndTokForDiff, DiffusionCollator
-
+from peft import LoraConfig, PeftModel, get_peft_model
 
 
 def load_and_preprocess_dataset(config, tokenizer):
@@ -32,6 +32,7 @@ def create_training_config(config):
     training_config = A2DConfig(
         output_dir=config['output_dir'],
         num_train_epochs=config['num_train_epochs'],
+        learning_rate=config.get('learning_rate', 5e-4),
         per_device_train_batch_size=config['per_device_train_batch_size'],
         gradient_accumulation_steps=config.get('gradient_accumulation_steps', 1),
         max_grad_norm=config.get('max_grad_norm', None),
@@ -46,6 +47,39 @@ def create_training_config(config):
     
     return training_config
 
+def create_lora_config(config):
+    lora_config = LoraConfig(
+        r=config.get('lora_r', 8),
+        lora_alpha=config.get('lora_alpha', 16),
+        target_modules=config.get('lora_target_modules', ["q_proj", "v_proj", "o_proj", "k_proj", "up_proj", "down_proj"]),
+        lora_dropout=config.get('lora_dropout', 0.1),
+        bias="none",
+        task_type="CAUSAL_LM"
+    )
+    return lora_config
+
+from transformers import AutoTokenizer, AutoModelForCausalLM, LlamaConfig
+def get_llama_config(config, tokenizer) -> LlamaConfig:
+    """
+    Convert the model configuration to LlamaConfig.
+    """
+    return LlamaConfig(
+        vocab_size=len(tokenizer),
+        pad_token_id=tokenizer.pad_token_id,
+        bos_token_id=tokenizer.bos_token_id,
+        eos_token_id=tokenizer.eos_token_id,
+        hidden_size=config.hidden_size,
+        intermediate_size=config.intermediate_size,
+        num_hidden_layers=config.num_hidden_layers,
+        num_attention_heads=config.num_attention_heads,
+        max_position_embeddings=config.max_position_embeddings,
+        rope_theta=config.rope_theta,
+        rms_norm_eps=config.rms_norm_eps,
+        initializer_range=config.initializer_range,
+        hidden_act=config.hidden_act,
+        tie_word_embeddings=config.tie_word_embeddings,
+    )
+
 
 def main(config):
     """Main training function"""
@@ -54,9 +88,36 @@ def main(config):
     print("="*50)
     
     torch.manual_seed(config.get('seed', 42))
-    model, tokenizer = ReformatModelAndTokForDiff(model_name=config["model_name"],
-                                                tokenizer_name=config["tokenizer_name"]).get_model_tok()
+
+    #model = AutoModelForCausalLM.from_pretrained(config["model_name"])
+    tokenizer = AutoTokenizer.from_pretrained(config["tokenizer_name"])
+    lora_config = create_lora_config(config) if config.get("use_lora", False) else None
+
+
+    class ModelConfig_3M:
+        hidden_size: int = 64
+        intermediate_size: int = 256
+        num_hidden_layers: int = 8
+        num_attention_heads: int = 16
+        hidden_act: str = "silu"
+        block_size: int = 512
+        max_position_embeddings: int = 2048
+        initializer_range: float = 0.041666666666666664
+        rms_norm_eps: float = 1e-6
+        rope_theta: float = 10000.0
+        attention_bias: bool = False
+        tie_word_embeddings: bool = True
+
+    llama_config = ModelConfig_3M()
+    model = LlamaForCausalLM(get_llama_config(llama_config,tokenizer)).to("cuda:0")
+
+
+
+    model, tokenizer = ReformatModelAndTokForDiff(model,
+                                                tokenizer,
+                                                lora_config=lora_config).get_model_tok()
     
+
     train_dataset, eval_dataset = load_and_preprocess_dataset(config, tokenizer)
     
     training_config = create_training_config(config)
@@ -70,7 +131,8 @@ def main(config):
     model_config = AutoConfig.from_pretrained(config["model_name"])
 
     muon_config = MuonConfig(
-        unified_lr = False,
+        unified_lr = True,
+        lr = config.get("learning_rate", 5e-4),
         lr_muon = config.get("lr_muon", 3e-4),
         lr_adam = config.get("lr_adam", 1e-8),
 

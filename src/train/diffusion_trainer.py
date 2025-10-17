@@ -4,6 +4,8 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import math
+from dataclasses import field
+
 
 def selective_log_softmax(logits, index) -> torch.Tensor:
     """
@@ -41,6 +43,7 @@ def selective_log_softmax(logits, index) -> torch.Tensor:
 
 
 class A2DConfig(TrainingArguments):
+
     pass
 
 
@@ -52,7 +55,7 @@ class A2DTrainer(Trainer):
     train_dataset, 
     eval_dataset=None,
     optimizers=(None,None)):
-
+        self.is_pretrained = False
         self.model = model
         self.args = training_args
 
@@ -80,14 +83,20 @@ class A2DTrainer(Trainer):
         t = inputs["t"]
 
         logits = model(input_ids=input_ids, attention_mask=attention_mask).logits
-        # translate diffusion masks to predict only if next token is masked
-        trans_masks = torch.cat([
-            diffusion_masks[:, 1:], 
-            torch.zeros(diffusion_masks.shape[0], 1, dtype=torch.bool, device=diffusion_masks.device)
-        ], dim=1)
+
         
         logps = selective_log_softmax(logits, labels)
-        loss = - (logps[trans_masks] / (1+t)).mean()
+        if self.is_pretrained:
+            # translate diffusion masks to predict only if next token is masked
+            trans_masks = torch.cat([
+                diffusion_masks[:, 1:], 
+                torch.zeros(diffusion_masks.shape[0], 1, dtype=torch.bool, device=diffusion_masks.device)
+            ], dim=1)
+            loss = - (logps[trans_masks] / (1+t)).mean()
+        
+        else:
+            loss = - (logps[diffusion_masks]).mean()
 
-        self.log({"train_loss": loss.detach().cpu().item()})
+        loss = loss / self.args.gradient_accumulation_steps
+        #self.log({"train_loss": loss.detach().cpu().item()})
         return loss
