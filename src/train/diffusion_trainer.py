@@ -55,7 +55,7 @@ class A2DTrainer(Trainer):
     train_dataset, 
     eval_dataset=None,
     optimizers=(None,None)):
-        self.is_pretrained = False
+        self.is_pretrained = True
         self.model = model
         self.args = training_args
 

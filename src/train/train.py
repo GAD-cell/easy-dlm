@@ -89,7 +89,7 @@ def main(config):
     
     torch.manual_seed(config.get('seed', 42))
 
-    #model = AutoModelForCausalLM.from_pretrained(config["model_name"])
+    
     tokenizer = AutoTokenizer.from_pretrained(config["tokenizer_name"])
     lora_config = create_lora_config(config) if config.get("use_lora", False) else None
 
@@ -109,8 +109,10 @@ def main(config):
         tie_word_embeddings: bool = True
 
     llama_config = ModelConfig_3M()
-    model = LlamaForCausalLM(get_llama_config(llama_config,tokenizer)).to("cuda:0")
-
+    
+    # use pretrained or not
+    #model = LlamaForCausalLM(get_llama_config(llama_config,tokenizer)).to("cuda:0")
+    model = AutoModelForCausalLM.from_pretrained(config["model_name"])
 
 
     model, tokenizer = ReformatModelAndTokForDiff(model,

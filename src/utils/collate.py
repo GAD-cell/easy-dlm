@@ -80,8 +80,8 @@ class DiffusionCollator(DefaultDataCollator):
         )
         
         input_encodings["labels"] = input_encodings.input_ids.clone() 
-        # input_encodings["labels"][:,:-1] = input_encodings["labels"][:,1:]  # shift left
-        # input_encodings["labels"][:,-1] = self.tokenizer.pad_token_id
+        input_encodings["labels"][:,:-1] = input_encodings["labels"][:,1:]  # shift left
+        input_encodings["labels"][:,-1] = self.tokenizer.pad_token_id
 
         t = torch.rand(input_encodings.input_ids.shape[0], 1)  # per sequence masking
 

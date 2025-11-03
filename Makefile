@@ -6,7 +6,7 @@ TEST_SCRIPT := src/test.py
 TRAIN_SCRIPT := src/train/train.py
 TEST_INFERENCE_SCRIPT := src/inference/test_inference.py
 
-.PHONY: env test train test_inference
+.PHONY: env test train test-inference
 
 env:
 	@command -v uv >/dev/null 2>&1 || { \
@@ -26,6 +26,6 @@ train:
 	@echo "Running training..."
 	PYTHONPATH=. $(VENV)/bin/python -m src.train.train --config src/train/training_config.yaml
 
-test_inference:
-	@echo "Running test_inference..."
+test-inference:
+	@echo "Running test-inference..."
 	PYTHONPATH=. $(VENV)/bin/python -m src.inference.test_inference --config src/inference/inference_config.yaml
