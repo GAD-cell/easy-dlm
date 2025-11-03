@@ -26,7 +26,7 @@ lora_target_modules: ["q_proj", "v_proj", "o_proj", "k_proj", "up_proj", "down_p
 
 # Training
 num_train_epochs: 3
-per_device_train_batch_size: 16
+per_device_train_batch_size: 40
 gradient_accumulation_steps: 2
 learning_rate: 5.0e-4
 lr_muon: 3.0e-4

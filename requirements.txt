@@ -4,3 +4,5 @@ transformers
 peft
 datasets
 git+https://github.com/GAD-cell/muon-clip.git@main
+hf_transfer
+huggingface_hub
